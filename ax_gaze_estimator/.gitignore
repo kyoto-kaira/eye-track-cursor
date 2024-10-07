@@ -1,0 +1,4 @@
+ax_gaze_estimator/*
+*__pycache__*
+*.onnx
+*.prototxt
