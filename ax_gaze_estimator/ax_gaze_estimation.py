@@ -251,7 +251,7 @@ def fetch_eyes(path):
     print(path)
     fx,fy,cx,cy=960,960,640,360
     camera_matrix = np.array([[fx,0,cx],[0,fy,cy],[0,0,1]]).astype(np.float64)
-    fid = cv2.FileStorage('cameraCalib.xml', cv2.FileStorage_READ)
+    fid = cv2.FileStorage('params/cameraCalib.xml', cv2.FileStorage_READ)
     camera_distortion = fid.getNode("cam_distortion").mat()#カメラの歪み係数
     filepath = os.path.join(path)
     img_original = cv2.imread(filepath)
@@ -260,7 +260,7 @@ def fetch_eyes(path):
     # Assuming detector and predictor have been loaded from Dlib
     landmarks, general_landmarks = get_facial_landmarks(img, detector, predictor)
     #グローバル(S接近前)座標での、それぞれの顔座標を定義
-    face = np.loadtxt('faceModelGeneric.txt')
+    face = np.loadtxt('params/faceModelGeneric.txt')
     num_pts = face.shape[1]
     facePts = face.T.reshape(num_pts, 1, 3)
     landmarks = landmarks.astype(np.float32)
