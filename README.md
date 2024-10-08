@@ -14,13 +14,13 @@ pip install -r requirements.txt
 この時、  
 ・PCの４隅を見たときの画像を１枚ずつ入れ、名前にも(top_left,top_right,down_left,down_rightを入れる)  
 ・その他の画像には、top_left,top_right,down_left,down_rightのいずれの名前も含まないようにする   
-　（backend/data/Images/example/FaceSamplesが参考になる）  
+　（backend/data/Images/FaceSamples/inputが参考になる）  
 3\. 以下のコードを動かす  
 ```
-python3 ax_gaze_estimation.py --input data/Images/~~~　#(画像を入れたディレクトリ名)
+python3 ax_gaze_estimation.py --input data/Images/~~~/input　#(画像を入れたディレクトリ名)
 ```
-これでbackend/data/Images/~~~_resultsディレクトリ下に視線の向きを付けた画像が渡され、  
-backend/data/results/gaze_point.jpg上に４隅を見たときの画像を元にした視線の位置をプロット
+これでbackend/data/Images/~~~/with_gazeディレクトリ下に視線の向きを付けた画像が渡され、  
+backend/data/Images/~~~/result/gaze_point.jpg上に４隅を見たときの画像を元にした視線の位置をプロット
 ## 補足
 X:X座標が大きくなるほど画面の右にいく（０～１２８０）  
 Y:Y座標が大きくなるほど、画面の下に目線がいく（０～６４０）    

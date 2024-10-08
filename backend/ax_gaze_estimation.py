@@ -444,7 +444,8 @@ def recognize_from_image():
     plt.ylabel('Y')
     plt.title('Center Point with Filename')
     plt.grid(True)
-    save_path=os.path.dirname(os.path.dirname(args.input[0]))+"/gaze_point.jpg"#backend/data/Images/faceSamples/input/...に画像を入れたなら、backend/data/Images/faceSamples下に保存される
+    save_path=os.path.join(os.path.dirname(os.path.dirname(args.input[0])),"result/gaze_point.jpg")#backend/data/Images/faceSamples/input/...に画像を入れたなら、backend/data/Images/faceSamples/result下に保存される
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path)
 
 def recognize_from_video():
