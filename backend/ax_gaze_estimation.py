@@ -8,15 +8,14 @@ import cv2
 import numpy as np
 import json
 import ax_gaze_estimation_utils as gut
-from eye_points_estimation import fetch_eyes,calculate_gaze_point,apply_perspective_transform
-sys.path.append('utils')
+from eye_points_estimation import fetch_eyes, calculate_gaze_point, apply_perspective_transform
 # logger
 from logging import getLogger  # noqa: E402
 
-from image_utils import imread  # noqa: E402
-from model_utils import check_and_download_models  # noqa: E402
-from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
-from webcamera_utils import get_capture, get_writer  # noqa: E402
+from utils.image_utils import imread  # noqa: E402
+from utils.model_utils import check_and_download_models  # noqa: E402
+from utils.arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from utils.webcamera_utils import get_capture, get_writer  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -24,7 +23,7 @@ logger = getLogger(__name__)
 # ======================
 # Parameters 1
 # ======================
-IMAGE_PATH = 'woman_face.jpg'
+IMAGE_PATH = 'backend/data/Images/FaceSamples/input'
 SAVE_IMAGE_PATH = 'output.png'
 IMAGE_HEIGHT = 1280
 IMAGE_WIDTH = 640
@@ -34,7 +33,7 @@ IMAGE_WIDTH = 640
 # Argument Parser Config
 # ======================
 parser = get_base_parser(
-    'Gaze estimation.',IMAGE_PATH, SAVE_IMAGE_PATH,
+    'Gaze estimation.', IMAGE_PATH, SAVE_IMAGE_PATH,
 )
 parser.add_argument(
     '-n', '--normal',
@@ -131,6 +130,7 @@ def time_execution(msg):
     start = time.perf_counter()
     yield
     logger.debug(f'{msg} {(time.perf_counter() - start) * 1000:.0f} ms')
+
 
 class GazeEstimator:
     """Class for estimating the gaze direction
@@ -370,7 +370,7 @@ def save_result_json(json_path, results):
 # ======================
 def recognize_from_image():
     estimator = GazeEstimator(args.include_iris, args.include_head_pose)
-    gaze_points=[]
+    gaze_points = []
     # input image loop
     for image_path in args.input:
         results = []
@@ -396,57 +396,57 @@ def recognize_from_image():
         if args.write_json:
             json_file = '%s.json' % savepath.rsplit('.', 1)[0]
             save_result_json(json_file, results)
-        left_eye_center,right_eye_center=fetch_eyes(image_path)
-        gaze_at=calculate_gaze_point((left_eye_center+right_eye_center)/2,results[-1]["gazes"][0])
-        gaze_points.append([gaze_at,image_path])
+        left_eye_center, right_eye_center = fetch_eyes(image_path)
+        gaze_at = calculate_gaze_point((left_eye_center + right_eye_center) / 2, results[-1]["gazes"][0])
+        gaze_points.append([gaze_at, image_path])
 
     logger.info('Script finished successfully.')
-    gaze_position_plot=[]
-    true_position=[]
-    object_points=[]
-    object_filenames=[]
-    for gaze_at,image_path in gaze_points:
-        if image_path.find("down_right")!=-1:
-            true_position.append([1280,640])
+    gaze_position_plot = []
+    true_position = []
+    object_points = []
+    object_filenames = []
+    for gaze_at, image_path in gaze_points:
+        if image_path.find("down_right") != -1:
+            true_position.append([1280, 640])
             gaze_position_plot.append(gaze_at.tolist())
-        elif image_path.find("down_left")!=-1:
-            true_position.append([0,640])
+        elif image_path.find("down_left") != -1:
+            true_position.append([0, 640])
             gaze_position_plot.append(gaze_at.tolist())
-        elif image_path.find("top_right")!=-1:
-            true_position.append([1280,0])
+        elif image_path.find("top_right") != -1:
+            true_position.append([1280, 0])
             gaze_position_plot.append(gaze_at.tolist())
-        elif image_path.find("top_left")!=-1:
-            true_position.append([0,0])
+        elif image_path.find("top_left") != -1:
+            true_position.append([0, 0])
             gaze_position_plot.append(gaze_at.tolist())
         else:
             object_points.append(gaze_at.tolist())
             object_filenames.append(image_path)
-    print("true_position:",true_position)
-    print("gaze_position_plot:",gaze_position_plot)
-    applied_points=apply_perspective_transform(np.float32(true_position),np.float32(gaze_position_plot),np.array(object_points))
-    print(args.input)
-    
-        
-    for applied_point,file_name in zip(applied_points,object_filenames):
+    print("true_position:", true_position)
+    print("gaze_position_plot:", gaze_position_plot)
+    applied_points = apply_perspective_transform(np.float32(true_position), np.float32(gaze_position_plot), np.array(object_points))
+    # グラフ描画
+    for applied_point, file_name in zip(applied_points, object_filenames):
         plt.scatter(applied_point[0], applied_point[1], color='blue')
 
         # テキストをプロット（座標と名前を表示）
         plt.text(applied_point[0], applied_point[1], os.path.basename(file_name), fontsize=12, ha='right')
     for true_point in true_position:
         plt.scatter(true_point[0], true_point[1], color='red')
-    #線分を引く
-    plt.plot([1280,0],[0,0],color='red')
-    plt.plot([1280,1280],[0,640],color='red')
-    plt.plot([0,1280],[640,640],color='red')
-    plt.plot([0,0],[0,640],color='red')
+    # 線分を引く
+    plt.plot([1280, 0], [0, 0], color='red')
+    plt.plot([1280, 1280], [0, 640], color='red')
+    plt.plot([0, 1280], [640, 640], color='red')
+    plt.plot([0, 0], [0, 640], color='red')
     # グラフ表示
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.title('Center Point with Filename')
     plt.grid(True)
-    save_path=os.path.join(os.path.dirname(os.path.dirname(args.input[0])),"result/gaze_point.jpg")#backend/data/Images/faceSamples/input/...に画像を入れたなら、backend/data/Images/faceSamples/result下に保存される
+    save_path = os.path.join(os.path.dirname(os.path.dirname(args.input[0])), "result/gaze_point.jpg")  # backend/data/Images/faceSamples/input/...に画像を入れたなら、backend/data/Images/faceSamples/result下に保存される
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path)
+    return applied_points, object_filenames
+
 
 def recognize_from_video():
     estimator = GazeEstimator(args.include_iris, args.include_head_pose)
@@ -462,7 +462,7 @@ def recognize_from_video():
         writer = None
 
     frame_shown = False
-    while(True):
+    while (True):
         ret, frame = capture.read()
         if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:
             break
@@ -475,7 +475,7 @@ def recognize_from_video():
         else:
             frame_draw = frame.copy()
 
-        if args.video == '0': # Flip horizontally if camera
+        if args.video == '0':  # Flip horizontally if camera
             visual_img = cv2.flip(frame_draw, 1)
         else:
             visual_img = frame_draw
@@ -519,7 +519,9 @@ def main():
         recognize_from_video()
     else:
         # image mode
-        recognize_from_image()
+        applied_points, object_filenames = recognize_from_image()
+        gaze_points_info = {object_filenames[i]: applied_points[i] for i in range(len(applied_points))}
+        return gaze_points_info
 
 
 if __name__ == '__main__':

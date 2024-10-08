@@ -4,8 +4,8 @@ import argparse
 import glob
 from logging import DEBUG
 
-from params import MODALITIES, EXTENSIONS
-import log_init
+from utils.params import MODALITIES, EXTENSIONS
+import utils.log_init as log_init
 
 # FIXME: Next two lines should be better to call from the main script
 # once we prepared one. For now, we do the initialization of logger here.
@@ -144,11 +144,11 @@ def update_parser(parser, check_input_type=True, large_model=False):
 
         if large_model:
             if args.env_id == ailia.get_gpu_environment_id() and ailia.get_environment(args.env_id).props == "LOWPOWER":
-                args.env_id = 0 # cpu
+                args.env_id = 0  # cpu
                 logger.warning('This model requires huge gpu memory so fallback to cpu mode')
 
         if args.env_list:
-            for idx in range(count) :
+            for idx in range(count):
                 env = ailia.get_environment(idx)
                 logger.info("  env[" + str(idx) + "]=" + str(env))
 
@@ -169,10 +169,10 @@ def update_parser(parser, check_input_type=True, large_model=False):
     # 2. update input
     if args.video is not None:
         args.ftype = 'video'
-        args.input = None # force video mode
+        args.input = None  # force video mode
 
     if isinstance(args.input, list) and len(args.input) == 1:
-        args.input = args.input[0] # support folder input
+        args.input = args.input[0]  # support folder input
 
     if args.input is None:
         # TODO: args.video, args.input is vague...
@@ -201,7 +201,7 @@ def update_parser(parser, check_input_type=True, large_model=False):
                 logger.info(f'[{os.path.dirname(in_dir)}/with_gaze] directory will be created')
                 if in_dir[-1] == '/':
                     in_dir = in_dir[:-1]
-                args.savepath = os.path.join(os.path.dirname(in_dir),'with_gaze')
+                args.savepath = os.path.join(os.path.dirname(in_dir), 'with_gaze')
             os.makedirs(args.savepath, exist_ok=True)
             logger.info(f'output saving directory: {args.savepath}')
 
