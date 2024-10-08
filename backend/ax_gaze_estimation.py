@@ -1,4 +1,5 @@
 import sys
+import os
 import time
 from contextlib import contextmanager
 import matplotlib.pyplot as plt
@@ -7,7 +8,7 @@ import cv2
 import numpy as np
 import json
 import ax_gaze_estimation_utils as gut
-
+from eye_points_estimation import fetch_eyes,calculate_gaze_point,apply_perspective_transform
 sys.path.append('utils')
 # logger
 from logging import getLogger  # noqa: E402
@@ -25,8 +26,8 @@ logger = getLogger(__name__)
 # ======================
 IMAGE_PATH = 'woman_face.jpg'
 SAVE_IMAGE_PATH = 'output.png'
-IMAGE_HEIGHT = 1240
-IMAGE_WIDTH = 680
+IMAGE_HEIGHT = 1280
+IMAGE_WIDTH = 640
 
 
 # ======================
@@ -125,194 +126,6 @@ GAZE_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/ax_gaze_estimat
 # ======================
 # Utils
 # ======================
-import os
-import cv2
-import numpy as np
-import scipy.io as sio
-import dlib
-predictor_path="shape_predictor/shape_predictor_68_face_landmarks.dat"
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor(predictor_path)  # Replace with path to shape predictor
-def get_facial_landmarks(image, detector, predictor):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = detector(gray)
-    if len(faces) == 0:
-        return None, None
-
-    # Use the largest face if multiple faces are detected
-    face = max(faces, key=lambda rect: rect.width() * rect.height())
-
-    landmarks = predictor(gray, face)
-    points = np.array([[landmarks.part(n).x, landmarks.part(n).y] for n in range(68)])
-
-    # Extract the 2D coordinates of specific landmarks (eyes and mouth corners)
-    keypoints = points[[36, 39, 42, 45,48,54]]  # 右目右端、右目左端、左目右端、左目左端、口右端、口左端（写真基準）
-    print(keypoints)
-    return keypoints, points
-import cv2
-import numpy as np
-
-def apply_perspective_transform(src_corners, dst_corners, points):
-    # 射影変換行列の計算
-    matrix = cv2.getPerspectiveTransform(dst_corners, src_corners)
-
-    # 点の座標を変換するために、同次座標に変換
-    points_homogeneous = np.hstack([points, np.ones((points.shape[0], 1))])  # (x, y) -> (x, y, 1)
-
-    # 射影変換を適用
-    transformed_points_homogeneous = np.dot(matrix, points_homogeneous.T).T  # 行列の積
-
-    # 同次座標から通常の座標に戻す
-    transformed_points = transformed_points_homogeneous[:, :2] / transformed_points_homogeneous[:, 2][:, np.newaxis]
-
-    return transformed_points
-
-def draw_gaze(image_in, pitchyaw, thickness=2, color=(0, 0, 255)):#pitchyaw:[theta,phi]
-    """Draw gaze angle on given image with a given eye positions."""
-    image_out = image_in
-    (h, w) = image_in.shape[:2]
-    length = np.min([h, w]) / 2.0
-    pos = (int(w / 2.0), int(h / 2.0))
-    if len(image_out.shape) == 2 or image_out.shape[2] == 1:  # Convert to RGB if grayscale
-        image_out = cv2.cvtColor(image_out, cv2.COLOR_GRAY2BGR)
-    dx = -length * np.sin(pitchyaw[1]) * np.cos(pitchyaw[0])
-    dy = -length * np.sin(pitchyaw[0])
-    #視線を書く
-    cv2.arrowedLine(image_out, tuple(np.round(pos).astype(int)),
-                  tuple(np.round([pos[0] + dx, pos[1] + dy]).astype(int)), color,
-                 thickness, cv2.LINE_AA, tipLength=0.2)
-
-    return image_out
-
-def estimateHeadPose(landmarks, face_model, camera, distortion, iterate=True):
-    ret, rvec, tvec = cv2.solvePnP(face_model, landmarks, camera, distortion, flags=cv2.SOLVEPNP_EPNP)
-    if iterate:
-        ret, rvec, tvec = cv2.solvePnP(face_model, landmarks, camera, distortion, rvec, tvec, True)
-    print("rvec:",rvec)
-    print("tvec:",tvec)
-
-    return rvec, tvec
-
-def normalizeData(img, face, hr, ht, gc, cam):
-    focal_norm = 960
-    distance_norm = 600
-    roiSize = (60, 36)
-
-    img_u = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    ht = ht.reshape((3, 1))
-    gc = gc.reshape((3, 1))
-    hR = cv2.Rodrigues(hr)[0]#3×３の回転行列（グローバル（Sによる接近前）→ローカル）を算出（cv2.Rodrigues(hr)[1]はヤコビアン行列（x,y,z用））
-    Fc = np.dot(hR, face) + ht#ローカル座標でのFcの位置をローカル用（３D）に変換
-    re = 0.5 * (Fc[:, 0] + Fc[:, 1]).reshape((3, 1))#ローカルのre
-    le = 0.5 * (Fc[:, 2] + Fc[:, 3]).reshape((3, 1))#ローカルのle
-
-    data = []
-    for et in [re, le]:
-        distance = np.linalg.norm(et)
-
-        z_scale = distance_norm / distance
-        cam_norm = np.array([
-            [focal_norm, 0, roiSize[0] / 2],
-            [0, focal_norm, roiSize[1] / 2],
-            [0, 0, 1.0],
-        ])
-        S = np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, z_scale],
-        ])
-
-        hRx = hR[:, 0]
-        forward = (et / distance).reshape(3)
-        down = np.cross(forward, hRx)#外積
-        down /= np.linalg.norm(down)
-        right = np.cross(down, forward)
-        right /= np.linalg.norm(right)
-        R = np.c_[right, down, forward].T
-
-        W = np.dot(np.dot(cam_norm, S), np.dot(R, np.linalg.inv(cam)))
-
-        img_warped = cv2.warpPerspective(img_u, W, roiSize)
-        img_warped = cv2.equalizeHist(img_warped)
-
-        hR_norm = np.dot(R, hR)
-        hr_norm = cv2.Rodrigues(hR_norm)[0]
-        #gc(local)を勝手に仮定した場合、gc_normalize(グローバル)がどうなるのかを示す：gcはgaze spotで、gc_normalizeは視線（原点基準）のベクトル情報
-        gc_normalized = gc - et
-        gc_normalized = np.dot(R, gc_normalized)
-        gc_normalized = gc_normalized / np.linalg.norm(gc_normalized)
-        #Mはg(local→S接近後のグローバルへと移す)
-        M=np.dot(S,R)
-        data.append([img_warped, hr_norm, gc_normalized,M])
-    return data,re.reshape((3,)),le.reshape((3,))
-
-def fetch_eyes(path):
-    print(path)
-    fx,fy,cx,cy=960,960,640,360
-    camera_matrix = np.array([[fx,0,cx],[0,fy,cy],[0,0,1]]).astype(np.float64)
-    fid = cv2.FileStorage('params/cameraCalib.xml', cv2.FileStorage_READ)
-    camera_distortion = fid.getNode("cam_distortion").mat()#カメラの歪み係数
-    filepath = os.path.join(path)
-    img_original = cv2.imread(filepath)
-    img = cv2.undistort(img_original, camera_matrix, camera_distortion)#歪みをなくす
-
-    # Assuming detector and predictor have been loaded from Dlib
-    landmarks, general_landmarks = get_facial_landmarks(img, detector, predictor)
-    #グローバル(S接近前)座標での、それぞれの顔座標を定義
-    face = np.loadtxt('params/faceModelGeneric.txt')
-    num_pts = face.shape[1]
-    facePts = face.T.reshape(num_pts, 1, 3)
-    landmarks = landmarks.astype(np.float32)
-    landmarks = landmarks.reshape(num_pts, 1, 2)
-    hr, ht = estimateHeadPose(landmarks, facePts, camera_matrix, camera_distortion)#カメラの位置をグローバル(S接近前)→ローカルにする際のhr,htを算出
-
-    gc = np.array([-127.790719, 4.621111, -12.025310])#どこを見てているのかを勝手に仮定して視線を描く(draw_gazeにしか使われない)
-
-    data,local_right_eye_center,local_left_eye_center = normalizeData(img, face, hr, ht, gc, camera_matrix)#グローバルカメラから見たときの[img_warped,hr_norm,gc_normalized](gc_normalizedはgc参照で算出したものなのであてにならない)
-
-    gaze_left = data[1][2]
-    gaze_right = data[0][2]
-    lr = ["right", "left"]
-
-    def write_normalized(num):
-        gaze_direction = data[num][2]
-        gaze_theta = np.arcsin((-1) * gaze_direction[1])
-        gaze_phi = np.arctan2((-1) * gaze_direction[0], (-1) * gaze_direction[2])
-
-        img_normalized = data[num][0]
-        cv2.imwrite(f'img_normalized_{lr[num]}({os.path.basename(path)}).jpg', img_normalized)
-        # 視線を描く（どこを見ているのかを勝手に想定しているので、不適切）
-        img_normalized = draw_gaze(img_normalized, np.array([gaze_theta[0], gaze_phi[0]]))
-
-    #write_normalized(0)
-    #write_normalized(1)
-
-    # 両目の中心（３D）を計算
-    print("Right eye center(local):", local_right_eye_center)
-    print("Left eye center(local):", local_left_eye_center)
-    global_left_eye_center= 0.5 * (facePts[0][0] + facePts[1][0])#S接近前
-    global_right_eye_center = 0.5 * (facePts[2][0] + facePts[3][0])#S接近前
-    return local_left_eye_center,local_right_eye_center
-def calculate_gaze_point(eye_position, gaze_vector):
-    """
-    Calculate the intersection of gaze vector with xy-plane (z=0).
-
-    Parameters:
-    eye_position (torch.tensor): Eye position (x, y, z)
-    gaze_vector (torch.tensor): Gaze vector (x, y, z)
-
-    Returns:
-    torch.tensor: Intersection point on xy-plane (x, y)
-    """
-    if gaze_vector[2] == 0:
-        return None  # Parallel to xy-plane, no intersection
-
-    t = -eye_position[2] / gaze_vector[2]  # Solve for z=0
-    gaze_x = eye_position[0] + t * gaze_vector[0]
-    gaze_y = eye_position[1] + t * gaze_vector[1]
-
-    return np.array([gaze_x, gaze_y])
 @contextmanager
 def time_execution(msg):
     start = time.perf_counter()
@@ -611,7 +424,7 @@ def recognize_from_image():
     print("true_position:",true_position)
     print("gaze_position_plot:",gaze_position_plot)
     applied_points=apply_perspective_transform(np.float32(true_position),np.float32(gaze_position_plot),np.array(object_points))
-    
+    print(args.input)
     
         
     for applied_point,file_name in zip(applied_points,object_filenames):
@@ -631,7 +444,8 @@ def recognize_from_image():
     plt.ylabel('Y')
     plt.title('Center Point with Filename')
     plt.grid(True)
-    plt.savefig('gaze_point.jpg')
+    save_path=os.path.dirname(os.path.dirname(args.input[0]))+"/gaze_point.jpg"#backend/data/Images/faceSamples/input/...に画像を入れたなら、backend/data/Images/faceSamples下に保存される
+    plt.savefig(save_path)
 
 def recognize_from_video():
     estimator = GazeEstimator(args.include_iris, args.include_head_pose)

@@ -198,10 +198,10 @@ def update_parser(parser, check_input_type=True, large_model=False):
             if '.' in args.savepath:
                 logger.warning('Please specify save directory as --savepath '
                                'if you specified a direcotry for --input')
-                logger.info(f'[{in_dir}_results] directory will be created')
+                logger.info(f'[{os.path.dirname(in_dir)}/results] directory will be created')
                 if in_dir[-1] == '/':
                     in_dir = in_dir[:-1]
-                args.savepath = in_dir + '_results'
+                args.savepath = os.path.join(os.path.dirname(in_dir),'results')
             os.makedirs(args.savepath, exist_ok=True)
             logger.info(f'output saving directory: {args.savepath}')
 

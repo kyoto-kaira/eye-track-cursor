@@ -292,7 +292,7 @@ def weighted_non_max_suppression(detections):
 
     return output_detections
 
-def face_detector_postprocess(preds, anchor_path='params/anchors.npy'):
+def face_detector_postprocess(preds, anchor_path='data/params/anchors.npy'):
     """
     Process detection predictions and return filtered detections
     """
