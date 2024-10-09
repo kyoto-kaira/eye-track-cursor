@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
-from typing import List, Tuple, Dict
-from eye_points_estimation import calculate_gaze_point, initialize_gaze_estimator
+from typing import List, Tuple
+from eye_points_estimation import calculate_gaze_point, initialize_gaze_estimator, fetch_eye_locations_from_image
 import ax_gaze_estimation_utils as gut
 
 # 設定のdefault値
@@ -110,7 +110,7 @@ def calibrate(calibration_images: List[np.ndarray], screen_positions: List[Tuple
         モデルや設定を含む辞書。
 
     Returns:
-    None
+    M (np.ndarray): 射影変換行列。
     """
     # 視線ベクトルと視線の原点を保持するリストを初期化
     gaze_vectors = []
@@ -121,7 +121,8 @@ def calibrate(calibration_images: List[np.ndarray], screen_positions: List[Tuple
         preds = predict_gaze(image, estimator_data, gazes_only=False)
         if preds[0] is not None:
             gaze_vec = preds[0][0]  # 画像内の顔が1つであると仮定
-            gaze_center = preds[1][0]
+            eye_left, eye_right = fetch_eye_locations_from_image(image)
+            gaze_center = (eye_left + eye_right) / 2
             gaze_vectors.append(gaze_vec)
             gaze_centers.append(gaze_center)
         else:
@@ -130,6 +131,7 @@ def calibrate(calibration_images: List[np.ndarray], screen_positions: List[Tuple
     # 各視線ベクトルと視線の原点から視点座標を計算
     gaze_points = []
     for gaze_vec, gaze_center in zip(gaze_vectors, gaze_centers):
+        print(gaze_center, gaze_vec)
         gaze_point = calculate_gaze_point(gaze_center, gaze_vec)
         gaze_points.append(gaze_point)
     # 推定された視点座標と実際のスクリーン位置から射影変換を計算
@@ -214,10 +216,10 @@ if __name__ == '__main__':
 
     # 例として画像を読み込む（実際にはフロントエンドからnp.ndarrayが渡される）
     for img_path, position in [
-        ('calibration_top_left.jpg', (0, 0)),
-        ('calibration_top_right.jpg', (1280, 0)),
-        ('calibration_bottom_left.jpg', (0, 720)),
-        ('calibration_bottom_right.jpg', (1280, 720))
+        ('backend/data/Images/FaceSamples/input/top_left.jpg', (0, 0)),
+        ('backend/data/Images/FaceSamples/input/top_right.jpg', (1280, 0)),
+        ('backend/data/Images/FaceSamples/input/down_left.jpg', (0, 720)),
+        ('backend/data/Images/FaceSamples/input/down_right.jpg', (1280, 720))
     ]:
         img = cv2.imread(img_path)
         calibration_images.append(img)

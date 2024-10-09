@@ -26,10 +26,10 @@ X:X座標が大きくなるほど画面の右にいく（０～１２８０）
 Y:Y座標が大きくなるほど、画面の下に目線がいく（０～６４０）    
 赤線：スクリーン（４隅を見たときの視線座標（２D）から求めたスクリーン（歪四角形）をアフィン変換によって綺麗な長方形に変化）  
 ## フロントとの接続方法
-1\. 手順の１.を参考にし、バックエンドを動かすのに必要な仮想環境を構築
-2\. ４隅を見た時の写真をdata/Images/demo_faces/inputに格納(名前をそれぞれtop_left.jpg,top_right.jpg,down_left.jpg,down_right.jpgにする)
-3\. data/Images/demo_faces/inputに視点の位置を推定したい画像を格納する（何枚でもよい）
-4\. backend/ax_gaze_estimation.pyのmain関数を実行する（引数は不要）と、{~(ファイル名:str):~~(スクリーン座標系における視点座標:np.ndarray)}のdict型を返してくれる
+以下backend/ax_gaze_estimation.py中の関数について語る。  
+1\. calibrate(calibration_images:画像のリスト,screen_positions:画像に対応したスクリーン上での位置座標)で、実際の視点座標(スクリーン上)を求めるのに必要な射影行列Mを取得  
+2\. infer_gaze_position(img:画像,screen_size:スクリーン座標系の長さ([x座標,y座標]),M:1\.で取得した行列)で、実際の視点座標(スクリーン上)をnp.ndarray([x座標,y座標])で取得  
+3\. draw_gaze_vector(img:画像)で視線ベクトルの描写付きの画像をnp.ndarrayとして返す
 ## 補足（フロントとの接続方法）
 X:X座標が大きくなるほど画面の右にいく（０～１２８０）  
 Y:Y座標が大きくなるほど、画面の下に目線がいく（０～６４０）   

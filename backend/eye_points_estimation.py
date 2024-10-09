@@ -122,21 +122,20 @@ def estimate_eye_location(hr: np.ndarray, ht: np.ndarray) -> Tuple[np.ndarray, n
     return re, le
 
 
-def fetch_eyes(path: str) -> Tuple[np.ndarray, np.ndarray]:
+def fetch_eye_locations_from_image(img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     画像から両目の中心座標を取得します。
     Args:
-        path: 画像のパス
+        img: 画像
 
     Returns:
         local_left_eye_center: 左目の中心座標（３D）
         local_right_eye_center: 右目の中心座標（３D）
     """
-    img_original = cv2.imread(path)
-    img = cv2.undistort(img_original, camera_matrix, camera_distortion)  # 歪みをなくす
+    undistorted_img = cv2.undistort(img, camera_matrix, camera_distortion)  # 歪みをなくす
 
     # Assuming detector and predictor have been loaded from Dlib
-    landmarks, _ = get_facial_landmarks(img)
+    landmarks, _ = get_facial_landmarks(undistorted_img)
     # グローバル(S接近前)座標での、それぞれの顔座標を定義
     num_pts = face_model.shape[1]
     face_points = face_model.T.reshape(num_pts, 1, 3)
