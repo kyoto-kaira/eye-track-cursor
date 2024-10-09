@@ -2,9 +2,20 @@ import cv2
 import numpy as np
 import dlib
 from typing import Tuple
+import ailia
 PREDICTOR_PATH = "backend/data/params/shape_predictor_68_face_landmarks.dat"
 CAMERA_CALIB_PATH = "backend/data/params/cameraCalib.xml"
 FACE_PATH = "backend/data/params/faceModelGeneric.txt"
+FACE_DET_MODEL_PATH = 'blazeface.opt.onnx.prototxt'
+FACE_DET_WEIGHT_PATH = 'blazeface.opt.onnx'
+FACE_LM_MODEL_PATH = 'facemesh.opt.onnx.prototxt'
+FACE_LM_WEIGHT_PATH = 'facemesh.opt.onnx'
+IRIS_LM_MODEL_PATH = 'iris.opt.onnx.prototxt'
+IRIS_LM_WEIGHT_PATH = 'iris.opt.onnx'
+HEAD_POSE_MODEL_PATH = 'hopenet_robust_alpha1.opt.onnx.prototxt'
+HEAD_POSE_WEIGHT_PATH = 'hopenet_robust_alpha1.opt.onnx'
+GAZE_MODEL_PATH = 'ax_gaze_estimation.opt.obf.onnx.prototxt'
+GAZE_WEIGHT_PATH = 'ax_gaze_estimation.opt.obf.onnx'
 fx, fy, cx, cy = 960, 960, 640, 360  # カメラの焦点距離（fx, fy）と中心点（cx, cy）
 # 顔検出モデルと顔の特徴点予測モデルを取得
 detector = dlib.get_frontal_face_detector()
@@ -94,7 +105,7 @@ def estimate_head_pose(landmarks: np.ndarray, face_points: np.ndarray, iterate=T
 
 def estimate_eye_location(hr: np.ndarray, ht: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    顔、姿勢、位置、視線を使用して、目の位置を推定します。
+    顔、姿勢、位置を使用して、目の位置を推定します。
     Args:
         face: 顔の位置(3D・グローバル座標系)
         hr: 顔の姿勢
@@ -160,3 +171,49 @@ def calculate_gaze_point(eye_position: np.ndarray, gaze_vector: np.ndarray) -> n
     gaze_y = eye_position[1] + t * gaze_vector[1]
 
     return np.array([gaze_x, gaze_y])
+
+
+def initialize_gaze_estimator(include_iris=False, include_head_pose=False, env_id=0):
+    """
+    視線推定器を初期化し、必要なモデルをロードします。
+
+    Parameters
+    ----------
+    include_iris : bool, optional
+        虹彩ランドマークを推定するかどうか。
+    include_head_pose : bool, optional
+        頭部姿勢を推定するかどうか。
+    env_id : int, optional
+        ailiaの環境ID。
+
+    Returns
+    -------
+    estimator_data : dict
+        モデルや設定を含む辞書。
+    """
+    estimator_data = {}
+    estimator_data['include_iris'] = include_iris
+    estimator_data['include_head_pose'] = include_head_pose
+
+    # モデルの初期化
+    estimator_data['face_detector'] = ailia.Net(
+        FACE_DET_MODEL_PATH, FACE_DET_WEIGHT_PATH, env_id=env_id
+    )
+    estimator_data['face_estimator'] = ailia.Net(
+        FACE_LM_MODEL_PATH, FACE_LM_WEIGHT_PATH, env_id=env_id
+    )
+    if include_iris:
+        estimator_data['iris_estimator'] = ailia.Net(
+            IRIS_LM_MODEL_PATH, IRIS_LM_WEIGHT_PATH, env_id=env_id
+        )
+    if include_head_pose:
+        estimator_data['hp_estimator'] = ailia.Net(
+            HEAD_POSE_MODEL_PATH, HEAD_POSE_WEIGHT_PATH, env_id=env_id
+        )
+    estimator_data['gaze_estimator'] = ailia.Net(
+        GAZE_MODEL_PATH, GAZE_WEIGHT_PATH, env_id=env_id
+    )
+    # キャリブレーション結果を保持する場所
+    estimator_data['calibration_result'] = None
+
+    return estimator_data
