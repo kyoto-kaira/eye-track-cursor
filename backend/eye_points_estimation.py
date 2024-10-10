@@ -3,6 +3,10 @@ import numpy as np
 import dlib
 from typing import Tuple
 import ailia
+from utils.model_utils import check_and_download_models
+FACE_DET_MODEL_NAME = 'blazeface'
+FACE_LM_MODEL_NAME = 'facemesh'
+IRIS_LM_MODEL_NAME = 'iris'
 PREDICTOR_PATH = "backend/data/params/shape_predictor_68_face_landmarks.dat"
 CAMERA_CALIB_PATH = "backend/data/params/cameraCalib.xml"
 FACE_PATH = "backend/data/params/faceModelGeneric.txt"
@@ -16,6 +20,11 @@ HEAD_POSE_MODEL_PATH = 'hopenet_robust_alpha1.opt.onnx.prototxt'
 HEAD_POSE_WEIGHT_PATH = 'hopenet_robust_alpha1.opt.onnx'
 GAZE_MODEL_PATH = 'ax_gaze_estimation.opt.obf.onnx.prototxt'
 GAZE_WEIGHT_PATH = 'ax_gaze_estimation.opt.obf.onnx'
+FACE_DET_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/{FACE_DET_MODEL_NAME}/'
+FACE_LM_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/{FACE_LM_MODEL_NAME}/'
+IRIS_LM_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/mediapipe_{IRIS_LM_MODEL_NAME}/'
+HEAD_POSE_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/hopenet/'
+GAZE_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/ax_gaze_estimation/'
 fx, fy, cx, cy = 960, 960, 640, 360  # カメラの焦点距離（fx, fy）と中心点（cx, cy）
 # 顔検出モデルと顔の特徴点予測モデルを取得
 detector = dlib.get_frontal_face_detector()
@@ -190,6 +199,23 @@ def initialize_gaze_estimator(include_iris=False, include_head_pose=False, env_i
     estimator_data : dict
         モデルや設定を含む辞書。
     """
+    check_and_download_models(
+        FACE_DET_WEIGHT_PATH, FACE_DET_MODEL_PATH, FACE_DET_REMOTE_PATH
+    )
+    check_and_download_models(
+        FACE_LM_WEIGHT_PATH, FACE_LM_MODEL_PATH, FACE_LM_REMOTE_PATH
+    )
+    check_and_download_models(
+        GAZE_WEIGHT_PATH, GAZE_MODEL_PATH, GAZE_REMOTE_PATH
+    )
+    if include_iris:
+        check_and_download_models(
+            IRIS_LM_WEIGHT_PATH, IRIS_LM_MODEL_PATH, IRIS_LM_REMOTE_PATH
+        )
+    if include_head_pose:
+        check_and_download_models(
+            HEAD_POSE_WEIGHT_PATH, HEAD_POSE_MODEL_PATH, HEAD_POSE_REMOTE_PATH
+        )
     estimator_data = {}
     estimator_data['include_iris'] = include_iris
     estimator_data['include_head_pose'] = include_head_pose

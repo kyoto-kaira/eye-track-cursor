@@ -92,7 +92,7 @@ def predict_gaze(img: np.ndarray, estimator_data: dict = default_estimator_setti
         gaze_estimator.update()
         gazes = gaze_estimator.get_results()[0]
         gazes_vec = gut.gaze_postprocess(gazes, face_affs)
-
+        print("gazes_vec", gazes_vec)
     if gazes_only:
         return gazes_vec
     else:
@@ -228,7 +228,7 @@ if __name__ == '__main__':
     # キャリブレーションの実行
     M = calibrate(calibration_images, screen_positions)
 
-    # 推論の実行例
+    # 推論の実行例（カメラの設定までは環境構築しておりません）
     # 例としてカメラからのフレームを取得
     cap = cv2.VideoCapture(0)
     screen_size = (1280, 720)  # スクリーンのサイズ（幅、高さ）
