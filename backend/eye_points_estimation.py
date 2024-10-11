@@ -3,10 +3,8 @@ import numpy as np
 import dlib
 from typing import Tuple
 import ailia
-from utils.model_utils import check_and_download_models
-FACE_DET_MODEL_NAME = 'blazeface'
-FACE_LM_MODEL_NAME = 'facemesh'
-IRIS_LM_MODEL_NAME = 'iris'
+from logging import getLogger
+logger = getLogger(__name__)
 PREDICTOR_PATH = "backend/data/params/shape_predictor_68_face_landmarks.dat"
 CAMERA_CALIB_PATH = "backend/data/params/cameraCalib.xml"
 FACE_PATH = "backend/data/params/faceModelGeneric.txt"
@@ -20,11 +18,6 @@ HEAD_POSE_MODEL_PATH = 'backend/data/models/hopenet_robust_alpha1.opt.onnx.proto
 HEAD_POSE_WEIGHT_PATH = 'backend/data/models/hopenet_robust_alpha1.opt.onnx'
 GAZE_MODEL_PATH = 'backend/data/models/ax_gaze_estimation.opt.obf.onnx.prototxt'
 GAZE_WEIGHT_PATH = 'backend/data/models/ax_gaze_estimation.opt.obf.onnx'
-FACE_DET_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/{FACE_DET_MODEL_NAME}/'
-FACE_LM_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/{FACE_LM_MODEL_NAME}/'
-IRIS_LM_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/mediapipe_{IRIS_LM_MODEL_NAME}/'
-HEAD_POSE_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/hopenet/'
-GAZE_REMOTE_PATH = f'https://storage.googleapis.com/ailia-models/ax_gaze_estimation/'
 fx, fy, cx, cy = 960, 960, 640, 360  # カメラの焦点距離（fx, fy）と中心点（cx, cy）
 # 顔検出モデルと顔の特徴点予測モデルを取得
 detector = dlib.get_frontal_face_detector()
@@ -106,8 +99,6 @@ def estimate_head_pose(landmarks: np.ndarray, face_points: np.ndarray, iterate=T
     _, rvec, tvec = cv2.solvePnP(face_points, landmarks, camera_matrix, camera_distortion, flags=cv2.SOLVEPNP_EPNP)
     if iterate:
         _, rvec, tvec = cv2.solvePnP(face_points, landmarks, camera_matrix, camera_distortion, rvec, tvec, True)
-    print("rvec:", rvec)
-    print("tvec:", tvec)
 
     return rvec, tvec
 
@@ -155,8 +146,8 @@ def fetch_eye_locations_from_image(img: np.ndarray) -> Tuple[np.ndarray, np.ndar
     local_right_eye_center, local_left_eye_center = estimate_eye_location(hr, ht)  # グローバルカメラから見たときの[img_warped,hr_norm,gc_normalized](gc_normalizedはgc参照で算出したものなのであてにならない)
 
     # 両目の中心（３D）を計算
-    print("Right eye center(local):", local_right_eye_center)
-    print("Left eye center(local):", local_left_eye_center)
+    logger.info(f"Right eye center(local):{local_right_eye_center}")
+    logger.info(f"Left eye center(local):{local_left_eye_center}")
     return local_left_eye_center, local_right_eye_center
 
 
@@ -199,23 +190,6 @@ def initialize_gaze_estimator(include_iris=False, include_head_pose=False, env_i
     estimator_data : dict
         モデルや設定を含む辞書。
     """
-    check_and_download_models(
-        FACE_DET_WEIGHT_PATH, FACE_DET_MODEL_PATH, FACE_DET_REMOTE_PATH
-    )
-    check_and_download_models(
-        FACE_LM_WEIGHT_PATH, FACE_LM_MODEL_PATH, FACE_LM_REMOTE_PATH
-    )
-    check_and_download_models(
-        GAZE_WEIGHT_PATH, GAZE_MODEL_PATH, GAZE_REMOTE_PATH
-    )
-    if include_iris:
-        check_and_download_models(
-            IRIS_LM_WEIGHT_PATH, IRIS_LM_MODEL_PATH, IRIS_LM_REMOTE_PATH
-        )
-    if include_head_pose:
-        check_and_download_models(
-            HEAD_POSE_WEIGHT_PATH, HEAD_POSE_MODEL_PATH, HEAD_POSE_REMOTE_PATH
-        )
     estimator_data = {}
     estimator_data['include_iris'] = include_iris
     estimator_data['include_head_pose'] = include_head_pose

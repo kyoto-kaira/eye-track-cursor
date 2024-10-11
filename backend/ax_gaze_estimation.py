@@ -1,11 +1,74 @@
+import os
 import numpy as np
 import cv2
+from contextlib import contextmanager
 from typing import List, Tuple
 from eye_points_estimation import calculate_gaze_point, initialize_gaze_estimator, fetch_eye_locations_from_image
 import ax_gaze_estimation_utils as gut
-
+import logging
+import time
+import matplotlib.pyplot as plt
+logging.basicConfig(level=logging.INFO)
 # 設定のdefault値
 default_estimator_setting = initialize_gaze_estimator()
+
+
+@contextmanager
+def time_execution(msg):
+    start = time.perf_counter()
+    yield
+    logging.debug(f'{msg} {(time.perf_counter() - start) * 1000:.0f} ms')
+
+
+def draw(img, gazes, gaze_centers, eyes_iris=None, hps=None, roi_centers=None, draw_iris=False,
+         draw_head_pose=False, horizontal_flip=False):
+    """Draw the gaze(s) and landmarks (and head pose(s)) on the image.
+
+    Regarding the head pose(s), (person POV) the axes correspond to
+    x (blue) oriented positively to the left, y (green) oriented positively
+    to the bottom and z (red) oriented positively to the back.
+
+    Parameters
+    ----------
+    img : NumPy array
+        The image to draw on (BGR channels).
+    gazes : NumPy array
+        The gaze(s) to draw.
+    gaze_centers : NumPy array
+        The centers of origin of the gaze(s).
+    eyes_iris : NumPy array, optional
+        The eye-region and iris landmarks to draw.
+    hps : NumPy array, optional
+        The head pose(s) to draw.
+    roi_centers : NumPy array, optional
+        The center(s) of origin of the head pose(s).
+    draw_iris : bool, optional
+        Whether to draw the iris landmarks or not.
+    draw_head_pose : bool, optional
+        Whether to draw the head pose(s) or not.
+    horizontal_flip : bool, optional
+        Whether to consider a horizontally flipped image for drawing.
+
+    Returns
+    -------
+    img_draw : NumPy array
+        Image with the gaze(s) and landmarks (and head pose(s)) drawn on it.
+    """
+    with time_execution('\t\tDrawing'):
+        img_draw = img.copy()
+        if eyes_iris is not None and draw_iris:
+            eyes, iris = eyes_iris
+            for i in range(len(eyes)):
+                gut.draw_eye_iris(
+                    img_draw, eyes[i, :, :16, :2], iris[i, :, :, :2], size=1
+                )
+        if horizontal_flip:
+            img_draw = np.ascontiguousarray(img_draw[:, ::-1])
+        if hps is not None and roi_centers is not None and draw_head_pose:
+            gut.draw_head_poses(img_draw, hps, roi_centers, horizontal_flip=horizontal_flip)
+        gut.draw_gazes(img_draw, gazes, gaze_centers, horizontal_flip=horizontal_flip)
+
+    return img_draw
 
 
 def predict_gaze(img: np.ndarray, estimator_data: dict = default_estimator_setting, gazes_only=True):
@@ -92,7 +155,7 @@ def predict_gaze(img: np.ndarray, estimator_data: dict = default_estimator_setti
         gaze_estimator.update()
         gazes = gaze_estimator.get_results()[0]
         gazes_vec = gut.gaze_postprocess(gazes, face_affs)
-        print("gazes_vec", gazes_vec)
+        logging.info(f"gazes_vec:{gazes_vec}")
     if gazes_only:
         return gazes_vec
     else:
@@ -131,12 +194,11 @@ def calibrate(calibration_images: List[np.ndarray], screen_positions: List[Tuple
     # 各視線ベクトルと視線の原点から視点座標を計算
     gaze_points = []
     for gaze_vec, gaze_center in zip(gaze_vectors, gaze_centers):
-        print(gaze_center, gaze_vec)
         gaze_point = calculate_gaze_point(gaze_center, gaze_vec)
         gaze_points.append(gaze_point)
     # 推定された視点座標と実際のスクリーン位置から射影変換を計算
-    src_points = np.float32(gaze_points)
-    dst_points = np.float32(screen_positions)
+    src_points = np.array(gaze_points, dtype=np.float32)
+    dst_points = np.array(screen_positions, dtype=np.float32)
     # 射影変換行列を計算
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     return M
@@ -155,14 +217,15 @@ def infer_gaze_position(image: np.ndarray, screen_size: Tuple[int, int], M: np.n
     Returns:
     screen_position (Tuple[int, int]): 推定されたスクリーン上の位置（x, y）。
     """
-    if estimator_data['calibration_result'] is None:
-        raise ValueError("キャリブレーションが実行されていません。")
     # 視線ベクトルを推定
     preds = predict_gaze(image, estimator_data, gazes_only=False)
     if preds[0] is not None:
         gaze_vec = preds[0][0]  # 画像内の顔が1つであると仮定
-        gaze_center = preds[1][0]
+        local_left_eye_center, local_right_eye_center = fetch_eye_locations_from_image(image)
+        gaze_center = (local_left_eye_center + local_right_eye_center) / 2
         # 視点座標を計算
+        logging.info(f"gaze_center:{gaze_center}")
+        logging.info(f"gaze_vec:{gaze_vec}")
         gaze_point = calculate_gaze_point(gaze_center, gaze_vec)
         # 変換行列を視点座標に適用
         gaze_point_homogeneous = np.array([gaze_point[0], gaze_point[1], 1.0], dtype=np.float32)
@@ -196,7 +259,7 @@ def draw_gaze_vector(image: np.ndarray, estimator_data: dict = default_estimator
     if preds[0] is not None:
         img_draw = image.copy()
         gazes, gaze_centers, eyes_iris, hps, roi_centers = preds
-        img_draw = gut.draw(
+        img_draw = draw(
             img_draw, gazes, gaze_centers, eyes_iris=eyes_iris, hps=hps, roi_centers=roi_centers,
             draw_iris=True, draw_head_pose=True, horizontal_flip=False
         )
@@ -215,6 +278,7 @@ if __name__ == '__main__':
     screen_positions = []  # それぞれの画像に対応するスクリーン上の位置
 
     # 例として画像を読み込む（実際にはフロントエンドからnp.ndarrayが渡される）
+    screen_positions = []
     for img_path, position in [
         ('backend/data/Images/FaceSamples/input/top_left.jpg', (0, 0)),
         ('backend/data/Images/FaceSamples/input/top_right.jpg', (1280, 0)),
@@ -227,30 +291,22 @@ if __name__ == '__main__':
 
     # キャリブレーションの実行
     M = calibrate(calibration_images, screen_positions)
-
-    # 推論の実行例（カメラの設定までは環境構築しておりません）
-    # 例としてカメラからのフレームを取得
-    cap = cv2.VideoCapture(0)
-    screen_size = (1280, 720)  # スクリーンのサイズ（幅、高さ）
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
+    screen_positions = []
+    for img_path in os.listdir('backend/data/Images/FaceSamples/input'):
+        img = cv2.imread(f'backend/data/Images/FaceSamples/input/{img_path}')
         # 視線位置を推定
-        screen_position = infer_gaze_position(frame, screen_size, M)
-        if screen_position is not None:
-            # スクリーン上に視線位置を表示するなどの処理
-            print(f"視線位置: {screen_position}")
-
-        # 視線ベクトルを描画
-        frame_with_gaze = draw_gaze_vector(frame)
-
-        # フレームを表示
-        cv2.imshow('Gaze Estimation', frame_with_gaze)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+        screen_position = infer_gaze_position(img, (1280, 720), M)
+        screen_positions.append((screen_position, img_path))
+        logging.info(screen_position)
+        # 視線結果を描く
+        img = draw_gaze_vector(img)
+        os.makedirs('backend/data/Images/FaceSamples/with_gaze', exist_ok=True)
+        cv2.imwrite(f'backend/data/Images/FaceSamples/with_gaze/{img_path.replace(".jpg", "_res.jpg")}', img)
+        logging.info(f"___________end of {img_path}_______________")
+    # 結果を描画
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    for position, img_path in screen_positions:
+        plt.plot(position[0], position[1], 'go')
+        plt.text(position[0], position[1], img_path)
+    plt.savefig('backend/data/Images/FaceSamples/result/gaze_point.jpg')
