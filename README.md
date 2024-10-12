@@ -5,7 +5,11 @@
 ・インストールしてほしいものはrequirements.txtに書かれてある。
 ## フロントとの接続方法(ルートディレクトリ上でしか使えない)
 2~4で述べる関数は全てbackend/ax_gaze_estimation.py中にあり、backend.ax_gaze_estimationからインポートできる。  
-backend_sample.py上にて実際の動きを試せる。  
+ルートディレクトリ上で1\. を行った後に  
+```
+python -m backend.ax_gaze_estimation
+```
+と動かせば2\. ～4\. が動く。  
 1\. ルートディレクトリ上で以下のコードを動かし、環境構築をする。
 ```
 python -m venv venv  
