@@ -4,7 +4,7 @@
 ・pythonをコマンド上にてインストール済(バージョンは3.12.4)  
 ・インストールしてほしいものはrequirements.txtに書かれてある。
 ## フロントとの接続方法(ルートディレクトリ上でしか使えない)
-2~4で述べる関数は全てbackend/ax_gaze_estimation.py中にあり、backend.ax_gaze_estimationからインポートできる。  
+2\. ～4\. で述べる関数は全てbackend/ax_gaze_estimation.py中にあり、backend.ax_gaze_estimationからインポートできる。  
 ルートディレクトリ上で1\. を行った後に  
 ```
 python -m backend.ax_gaze_estimation
