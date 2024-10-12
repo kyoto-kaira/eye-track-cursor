@@ -3,8 +3,9 @@
 ・Linux(or Ubuntu)のコマンドをルートディレクトリ上で動かしている  
 ・pythonをコマンド上にてインストール済(バージョンは3.12.4)  
 ・インストールしてほしいものはrequirements.txtに書かれてある。
-## フロントとの接続方法
-2~4で述べる関数は全てbackend/ax_gaze_estimation.py中にある。  
+## フロントとの接続方法(ルートディレクトリ上でしか使えない)
+2~4で述べる関数は全てbackend/ax_gaze_estimation.py中にあり、backend.ax_gaze_estimationからインポートできる。  
+backend_sample.py上にて実際の動きを試せる。  
 1\. ルートディレクトリ上で以下のコードを動かし、環境構築をする。
 ```
 python -m venv venv  

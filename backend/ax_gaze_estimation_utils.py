@@ -2,9 +2,6 @@ import cv2
 import numpy as np
 from scipy.special import expit
 
-import sys
-from utils.math_utils import softmax
-
 num_coords = 16
 x_scale = 128.0
 y_scale = 128.0
@@ -20,9 +17,8 @@ kp2 = 0  # Right eye
 theta0 = 0
 dscale = 1.5
 dy = 0.
-
 resolution = 192
-
+ANCHOR_PATH = 'backend/data/params/anchors.npy'
 EYE_LEFT_CONTOUR = [
     249, 263, 362, 373, 374,
     380, 381, 382, 384, 385,
@@ -33,6 +29,14 @@ EYE_RIGHT_CONTOUR = [
     153, 154, 155, 157, 158,
     159, 160, 161, 163, 173, 246
 ]
+
+
+def softmax(x, axis=None):
+    max = np.max(x, axis=axis, keepdims=True)
+    e_x = np.exp(x - max)
+    sum = np.sum(e_x, axis=axis, keepdims=True)
+    f_x = e_x / sum
+    return f_x
 
 
 def resize_image(img, out_size, keep_aspect_ratio=True, return_scale_padding=False):
@@ -299,14 +303,14 @@ def weighted_non_max_suppression(detections):
     return output_detections
 
 
-def face_detector_postprocess(preds, anchor_path='backend/data/params/anchors.npy'):
+def face_detector_postprocess(preds):
     """
     Process detection predictions and return filtered detections
     """
     raw_box = preds[0]  # (1, 896, 16)
     raw_score = preds[1]  # (1, 896, 1)
 
-    anchors = np.load(anchor_path).astype("float32")
+    anchors = np.load(ANCHOR_PATH).astype("float32")
 
     # Postprocess the raw predictions:
     detections = raw_output_to_detections(raw_box, raw_score, anchors)
