@@ -292,6 +292,7 @@ if __name__ == '__main__':
     # キャリブレーションの実行
     M = calibrate(calibration_images, screen_positions)
     screen_positions = []
+    logging.info("___________start of inference_______________")
     for img_path in os.listdir('backend/data/Images/FaceSamples/input'):
         img = cv2.imread(f'backend/data/Images/FaceSamples/input/{img_path}')
         # 視線位置を推定
