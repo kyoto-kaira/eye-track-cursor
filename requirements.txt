@@ -19,6 +19,7 @@ numpy==1.26.4
 opencv-python==4.10.0.84
 packaging==24.1
 pillow==10.4.0
+plotly==5.24.1
 PyMatting==1.1.12
 pyparsing==3.1.4
 python-dateutil==2.9.0.post0
