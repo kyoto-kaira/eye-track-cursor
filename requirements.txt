@@ -30,3 +30,5 @@ tqdm==4.66.5
 urllib3==2.2.3
 wcwidth==0.2.13
 webcolors==24.8.0
+streamlit==1.38.0
+streamlit-webrtc==0.47.9

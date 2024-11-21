@@ -159,7 +159,6 @@ def predict_gaze(img: np.ndarray, estimator_data: dict = default_estimator_setti
         gaze_estimator.update()
         gazes = gaze_estimator.get_results()[0]
         gazes_vec = gut.gaze_postprocess(gazes, face_affs)
-        logging.info(f"gazes_vec:{gazes_vec}")
     if gazes_only:
         return gazes_vec
     else:
@@ -194,7 +193,7 @@ def calibrate(calibration_images: List[np.ndarray], screen_positions: List[Tuple
             gaze_centers.append(gaze_center)
         else:
             # 視線ベクトルが取得できない場合の処理
-            pass
+            raise ValueError("Gaze vector could not be estimated.")
     # 各視線ベクトルと視線の原点から視点座標を計算
     gaze_points = []
     for gaze_vec, gaze_center in zip(gaze_vectors, gaze_centers):
@@ -205,7 +204,7 @@ def calibrate(calibration_images: List[np.ndarray], screen_positions: List[Tuple
     dst_points = np.array(screen_positions, dtype=np.float32)
     # 射影変換行列を計算
     M = cv2.getPerspectiveTransform(src_points, dst_points)
-    return M
+    return M, src_points, dst_points
 
 
 def infer_gaze_position(image: np.ndarray, screen_size: Tuple[int, int], M: np.ndarray, estimator_data: dict = default_estimator_setting) -> Tuple[int, int]:
@@ -228,19 +227,17 @@ def infer_gaze_position(image: np.ndarray, screen_size: Tuple[int, int], M: np.n
         local_left_eye_center, local_right_eye_center = fetch_eye_locations_from_image(image)
         gaze_center = (local_left_eye_center + local_right_eye_center) / 2
         # 視点座標を計算
-        logging.info(f"gaze_center:{gaze_center}")
-        logging.info(f"gaze_vec:{gaze_vec}")
         gaze_point = calculate_gaze_point(gaze_center, gaze_vec)
         # 変換行列を視点座標に適用
-        gaze_point_homogeneous = np.array([gaze_point[0], gaze_point[1], 1.0], dtype=np.float32)
-        transformed_point = np.dot(M, gaze_point_homogeneous)
-        # 同次座標を通常の座標に変換
-        screen_x = transformed_point[0] / transformed_point[2]
-        screen_y = transformed_point[1] / transformed_point[2]
+        src_coords = np.array([[gaze_point[0], gaze_point[1]]], dtype=np.float32).reshape(-1, 1, 2)
+        transformed_corrds = cv2.perspectiveTransform(src_coords, M)
+        screen_x = transformed_corrds[0][0][0]
+        screen_y = transformed_corrds[0][0][1]
         # 値をスクリーンサイズにクランプ(スクリーンの範囲内に視点座標を収める)
         screen_x = np.clip(screen_x, 0, screen_size[0])
         screen_y = np.clip(screen_y, 0, screen_size[1])
         screen_position = (int(screen_x), int(screen_y))
+        logging.info(f"screen_position:{screen_position}")
         return screen_position
     else:
         # 視線ベクトルが取得できない場合の処理

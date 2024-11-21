@@ -146,8 +146,8 @@ def fetch_eye_locations_from_image(img: np.ndarray) -> Tuple[np.ndarray, np.ndar
     local_right_eye_center, local_left_eye_center = estimate_eye_location(hr, ht)  # グローバルカメラから見たときの[img_warped,hr_norm,gc_normalized](gc_normalizedはgc参照で算出したものなのであてにならない)
 
     # 両目の中心（３D）を計算
-    logger.info(f"Right eye center(local):{local_right_eye_center}")
-    logger.info(f"Left eye center(local):{local_left_eye_center}")
+    # logger.info(f"Right eye center(local):{local_right_eye_center}")
+    # logger.info(f"Left eye center(local):{local_left_eye_center}")
     return local_left_eye_center, local_right_eye_center
 
 
