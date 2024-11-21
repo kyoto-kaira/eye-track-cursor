@@ -1,24 +1,66 @@
-# 視線推定ライブラリの動かし方(backend/ax_gaze_estimation.py)
-## 前提
-・Linux(or Ubuntu)のコマンドをルートディレクトリ上で動かしている  
-・pythonをコマンド上にてインストール済(バージョンは3.12.4)  
-・インストールしてほしいものはrequirements.txtに書かれてある。
-## フロントとの接続方法
-2\. ～4\. で述べる関数は全てbackend/ax_gaze_estimation.py中にあり、backend.ax_gaze_estimationからインポートできる。  
-ルートディレクトリ上で1\. を行った後に  
+# 目線で操るマウスカーソル
+## 動かし方
+
+1. uvを入れる（入っている人はこの手順は飛ばしてください）
+
+```shell
+# macOS または Linuxの人
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windowsの人
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
-python -m backend.ax_gaze_estimation
+
+2. cmakeを入れる（入っている人はこの手順は飛ばしてください）
+
+```shell
+# macOS または Linuxの人
+brew install cmake
+
+# Windowsの人
+# https://qiita.com/matskeng/items/c466c4751e1352f97ce6
+# を参考にして入れる
 ```
-と動かせば2\. ～4\. が動く。  
-1\. ルートディレクトリ上で以下のコードを動かし、環境構築をする。
+
+
+2. リポジトリをクローンする
+
+```shell
+# 任意のディレクトリに移動して以下を実行すると、このリポジトリがその下に作成されます
+git clone https://github.com/kyoto-kaira/eye-track-cursor.git
+
+# 作成されたリポジトリに移動する
+cd eye-track-cursor
 ```
-python -m venv venv  
-source venv/bin/activate  
-pip install -r backend/requirements.txt  
+
+3. Python3.10の仮想環境を作成する
+
+```shell
+# 以下を実行すると、現在のディレクトリに.venv/という名前の仮想環境が作成されます
+uv venv -p 3.10.15
 ```
-2\. calibrate(calibration_images:画像のリスト,screen_positions:画像に対応したスクリーン上での位置座標)で、実際の視点座標(スクリーン上)を求めるのに必要な射影行列Mを取得  
-3\. infer_gaze_position(img:画像,screen_size:スクリーン座標系の長さ([x座標,y座標]),M:1\.で取得した行列)で、実際の視点座標(スクリーン上)をnp.ndarray([x座標,y座標])で取得  
-4\. draw_gaze_vector(img:画像)で視線ベクトルの描写付きの画像をnp.ndarrayとして返す
-## 補足（フロントとの接続方法）
-X:X座標が大きくなるほど画面の右にいく（０～１２８０）  
-Y:Y座標が大きくなるほど、画面の下に目線がいく（０～６４０）   
+
+4. 仮想環境を有効化する
+
+```shell
+# macOS または Linuxの人
+source .venv/bin/activate
+
+# Windowsの人 (バックスラッシュです!!)
+.venv\Scripts\activate
+
+# ディレクトリ名の左側に (eye-track-cursor) と表示されれば成功です
+```
+
+5. 依存パッケージをインストールする
+
+```shell
+# dlibのインストールに時間がかかるので気長にお待ちください
+uv pip install -r requirements.txt
+```
+
+6. アプリを起動する
+
+```shell
+streamlit run app.py
+```
