@@ -8,7 +8,7 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windowsの人
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 2. cmakeを入れる（入っている人はこの手順は飛ばしてください）
