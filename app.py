@@ -1,189 +1,308 @@
-import streamlit as st
 import cv2
 import numpy as np
-import time
+import plotly.graph_objects as go
+import streamlit as st
 from PIL import Image
-from backend.ax_gaze_estimation import (
-    draw_gaze_vector,
-    calibrate,
-    infer_gaze_position
-)
+
+from backend.ax_gaze_estimation import calibrate, draw_gaze_vector, infer_gaze_position
+
+# Streamlitのページ設定
+st.set_page_config(page_title="目線で操るマウスカーソル", layout="wide", page_icon="👀")
 
 # セッションステートの初期化
-if 'calibration_data' not in st.session_state:
-    st.session_state.calibration_data = []
+if "calibration_images" not in st.session_state:
+    st.session_state.calibration_images = {
+        "左上": None,
+        "右上": None,
+        "左下": None,
+        "右下": None,
+    }
 
-if 'points' not in st.session_state:
-    st.session_state.points = []
+if "screen_positions" not in st.session_state:
+    st.session_state.screen_positions = {
+        "左上": None,
+        "右上": None,
+        "左下": None,
+        "右下": None,
+    }
 
-if 'cap' not in st.session_state:
-    st.session_state.cap = None
+if "M" not in st.session_state:
+    st.session_state.M = None
 
-# レイアウトの設定
-st.title("カメラキャリブレーションとリアルタイムプロットアプリ")
+if "gaze_points" not in st.session_state:
+    st.session_state.gaze_points = []
 
-tabs = st.tabs(["キャリブレーション", "メイン"])
-
-# キャリブレーションタブ
-with tabs[0]:
-    st.header("キャリブレーション")
-    camera_input = st.camera_input("カメラから画像を取得")
-
-    if camera_input:
-        image = Image.open(camera_input)
-        image = draw_gaze_vector(np.array(image))
-        st.image(image, caption="取得した画像", use_column_width=True)
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            if st.button("左上"):
-                st.session_state.calibration_data.append({
-                    'type': '左上',
-                    'image': camera_input
-                })
-                st.success("左上の画像を保存しました。")
-        with col2:
-            if st.button("右上"):
-                st.session_state.calibration_data.append({
-                    'type': '右上',
-                    'image': camera_input
-                })
-                st.success("右上の画像を保存しました。")
-        with col3:
-            if st.button("左下"):
-                st.session_state.calibration_data.append({
-                    'type': '左下',
-                    'image': camera_input
-                })
-                st.success("左下の画像を保存しました。")
-        with col4:
-            if st.button("右下"):
-                st.session_state.calibration_data.append({
-                    'type': '右下',
-                    'image': camera_input
-                })
-                st.success("右下の画像を保存しました。")
-
-    st.subheader("保存されたキャリブレーションデータ")
-    for idx, data in enumerate(st.session_state.calibration_data):
-        st.write(f"{idx+1}. {data['type']} の画像")
-        st.image(data['image'], use_column_width=True)
-
-# メインタブ
-with tabs[1]:
-    st.header("リアルタイム2次元座標プロット")
-    
-    # プロット間隔の設定
-    interval = st.slider("フレーム取得間隔（秒）", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+if "video_running" not in st.session_state:
+    st.session_state.video_running = False
 
 
-    # 仮のフレーム処理関数
-    def process_frame(frame):
-        """
-        フレームを処理して2次元座標を返す関数のサンプル。
-        実際の処理内容に応じて実装してください。
-        """
-        # 例として、フレームの範囲内でランダムな座標を返す
-        print(type(frame), frame.shape)
-        print(M)
-        if M is not None:
-            try:
-                screen_position = infer_gaze_position(frame, (1920, 1080), M)
-            except:
-                screen_position =(0,0)
-            return screen_position
-        else:
-            raise ValueError("NOT キャリブ")
-#        h, w, _ = frame.shape
-#        x = np.random.randint(0, w)
-#        y = np.random.randint(0, h)
-#        return (x, y)
+# キャリブレーション用のラベルと対応するスクリーン位置
+def get_calibration_labels(screen_size: tuple) -> dict:
+    height, width = screen_size
+    CALIBRATION_LABELS = {
+        "左上": (width, 0),
+        "右上": (0, height),
+        "左下": (width, height),
+        "右下": (0, 0),
+    }
+    return CALIBRATION_LABELS
 
-    # カメラの初期化
-    if st.session_state.cap is None:
-        st.session_state.cap = cv2.VideoCapture(0)
 
-    cap = st.session_state.cap
+# タブの作成
+tab1, tab2 = st.tabs(["キャリブレーション", "メイン"])
 
-    if not cap.isOpened():
-        st.error("カメラが開けません。")
+with tab1:
+    st.header("キャリブレーション画面")
+    st.write("カメラに向かって各ボタンを押してください。")
+
+    # カメラから画像を取得
+    camera_input = st.camera_input("カメラ画像を取得")
+
+    cols = st.columns(2)
+    with cols[0]:
+        if st.button("左上"):
+            if camera_input is not None:
+                image = Image.open(camera_input)
+                image_np = np.array(image)
+                image_with_gaze = draw_gaze_vector(image_np)
+                CALIBRATION_LABELS = get_calibration_labels(image_np.shape[:2])
+                st.image(image_with_gaze, channels="RGB")
+                st.session_state.calibration_images["左上"] = image_np
+                st.session_state.screen_positions["左上"] = CALIBRATION_LABELS["左上"]
+                st.success("左上のキャリブレーションポイントを保存しました。")
+            else:
+                st.error("カメラ画像が取得できませんでした。")
+    with cols[1]:
+        if st.button("右上"):
+            if camera_input is not None:
+                image = Image.open(camera_input)
+                image_np = np.array(image)
+                image_with_gaze = draw_gaze_vector(image_np)
+                CALIBRATION_LABELS = get_calibration_labels(image_np.shape[:2])
+                st.image(image_with_gaze, channels="RGB")
+                st.session_state.calibration_images["右上"] = image_np
+                st.session_state.screen_positions["右上"] = CALIBRATION_LABELS["右上"]
+                st.success("右上のキャリブレーションポイントを保存しました。")
+            else:
+                st.error("カメラ画像が取得できませんでした。")
+
+    with cols[0]:
+        if st.button("左下"):
+            if camera_input is not None:
+                image = Image.open(camera_input)
+                image_np = np.array(image)
+                image_with_gaze = draw_gaze_vector(image_np)
+                CALIBRATION_LABELS = get_calibration_labels(image_np.shape[:2])
+                st.image(image_with_gaze, channels="RGB")
+                st.session_state.calibration_images["左下"] = image_np
+                st.session_state.screen_positions["左下"] = CALIBRATION_LABELS["左下"]
+                st.success("左下のキャリブレーションポイントを保存しました。")
+            else:
+                st.error("カメラ画像が取得できませんでした。")
+    with cols[1]:
+        if st.button("右下"):
+            if camera_input is not None:
+                image = Image.open(camera_input)
+                image_np = np.array(image)
+                image_with_gaze = draw_gaze_vector(image_np)
+                CALIBRATION_LABELS = get_calibration_labels(image_np.shape[:2])
+                st.image(image_with_gaze, channels="RGB")
+                st.session_state.calibration_images["右下"] = image_np
+                st.session_state.screen_positions["右下"] = CALIBRATION_LABELS["右下"]
+                st.success("右下のキャリブレーションポイントを保存しました。")
+            else:
+                st.error("カメラ画像が取得できませんでした。")
+
+    # キャリブレーションが完了したかチェック
+    if all(v is not None for v in st.session_state.calibration_images.values()):
+        st.success(
+            "すべてのキャリブレーションポイントが保存されました。キャリブレーションを実行します。"
+        )
+        if st.button("キャリブレーション実行"):
+            with st.spinner("キャリブレーション中..."):
+                cal_imgs = st.session_state.calibration_images
+                scr_pos = st.session_state.screen_positions
+                calibration_images = [cal_imgs[k] for k in sorted(cal_imgs.keys())]
+                screen_positions = [scr_pos[k] for k in sorted(scr_pos.keys())]
+                try:
+                    M, src, dst = calibrate(
+                        calibration_images=calibration_images,
+                        screen_positions=screen_positions,
+                    )
+                    print("====src====")
+                    print(src)
+                    print("====dst====")
+                    print(dst)
+                    print("====M====")
+                    print(M)
+                    # srcをplotlyで表示
+                    fig = go.Figure()
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[src[0, 0]],
+                            y=[src[0, 1]],
+                            mode="markers",
+                            name="左上",
+                            marker=dict(color="red", size=20),
+                        )
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[src[1, 0]],
+                            y=[src[1, 1]],
+                            mode="markers",
+                            name="左下",
+                            marker=dict(color="blue", size=20),
+                        )
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[src[2, 0]],
+                            y=[src[2, 1]],
+                            mode="markers",
+                            name="右下",
+                            marker=dict(color="green", size=20),
+                        )
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[src[3, 0]],
+                            y=[src[3, 1]],
+                            mode="markers",
+                            name="右上",
+                            marker=dict(color="orange", size=20),
+                        )
+                    )
+
+                    fig.update_layout(
+                        title="キャリブレーション位置", width=400, height=400
+                    )
+                    st.plotly_chart(fig)
+
+                    st.session_state.M = M
+                    st.success(
+                        "キャリブレーションが完了しました。メイン画面で視線推定を開始できます。"
+                    )
+                except Exception as e:
+                    st.error(f"キャリブレーション中にエラーが発生しました: {e}")
+
+with tab2:
+    if st.session_state.M is None:
+        st.warning(
+            "キャリブレーションが完了していません。キャリブレーションタブでキャリブレーションを行ってください。"
+        )
     else:
-        # 実行中かどうかのフラグ
-        if 'running' not in st.session_state:
-            st.session_state.running = False
+        # Canvasの準備（Plotlyを使用）
+        screen_size = (1920, 1080)  # 実際のスクリーンサイズに合わせて調整
 
-        start_button, stop_button = st.columns(2)
+        fig = go.Figure()
+        fig.update_layout(
+            xaxis=dict(range=[0, screen_size[0]], autorange=False, title="X"),
+            yaxis=dict(range=[0, screen_size[1]], autorange=False, title="Y"),
+            title="視線位置",
+            width=1920 // 2,
+            height=1080 // 2,
+        )
+        # ステータス
+        status_placeholder = st.empty()
 
-        with start_button:
-            if st.button("開始"):
-                st.session_state.running = True
-                # pointsをクリアする
-                st.session_state.points.clear()
+        # Plotlyチャートのプレースホルダー
+        chart_placeholder = st.empty()
 
-        with stop_button:
-            if st.button("停止"):
-                st.session_state.running = False
-                # pointsをクリアする
-                st.session_state.points.clear()
+        # 取得したカメラフレームを表示するプレースホルダー
+        frame_placeholder = st.empty()
 
-                # カメラを解放
-                if cap:
+        # OpenCV VideoCaptureの初期化
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            st.error("カメラを開くことができませんでした。")
+        else:
+            col1, col2, col3 = st.columns(3)
+            # 実行中フラグ
+            if not st.session_state.video_running:
+                start_button = col1.button("視線推定開始")
+                if start_button:
+                    st.session_state.video_running = True
+
+            if st.session_state.video_running:
+                stop_button = col2.button("視線推定停止")
+                if stop_button:
+                    st.session_state.video_running = False
                     cap.release()
-                    st.session_state.cap = None
+                    cv2.destroyAllWindows()
+                    st.rerun()
 
-        placeholder = st.empty()
+                # 視線ポイントのリセット
+                if col3.button("視線ポイントのリセット"):
+                    st.session_state.gaze_points = []
 
-        if st.session_state.running:
-            while st.session_state.running:
-                # キャリブレーション
-                # calibration_images = [data['image'] for data in st.session_state.calibration_data]
-                # ndarrayを取り出すように修正
-                calibration_images = [np.array(Image.open(data['image'])) for data in st.session_state.calibration_data]
-                screen_positions = [(0, 0), (1280, 0), (0, 720), (1280, 720)]
-                if len(calibration_images) == 4:
-                    M = calibrate(calibration_images, screen_positions)
-                else:
-                    M = None
+                # Plotlyチャートの初期化
+                fig = go.Figure()
+                fig.update_layout(
+                    xaxis=dict(range=[0, screen_size[0]], autorange=False, title="X"),
+                    yaxis=dict(range=[0, screen_size[1]], autorange=False, title="Y"),
+                    title="視線位置",
+                    width=1920 // 2,
+                    height=1080 // 2,
+                )
+                chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-                current_time = time.time()
-                if 'last_capture_time' not in st.session_state:
-                    st.session_state.last_capture_time = 0
-
-                if current_time - st.session_state.last_capture_time >= interval:
+                # フレームの取得と処理
+                while st.session_state.video_running:
                     ret, frame = cap.read()
                     if not ret:
-                        st.error("フレームを取得できませんでした。")
-                        st.session_state.running = False
+                        st.error("カメラからフレームを取得できませんでした。")
                         break
 
-                    # フレームをBGRからRGBに変換
+                    # BGRからRGBに変換
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-                    # 2次元座標を取得
-                    coords = process_frame(frame)
-                    st.session_state.points.append(coords)
-
-                    # 画像に線をプロット
-                    if len(st.session_state.points) > 1:
-                        for i in range(1, len(st.session_state.points)):
-                            cv2.line(frame_rgb, st.session_state.points[i-1], st.session_state.points[i], (255, 0, 0), 2)
-
                     # 画像を表示
-                    placeholder.image(frame_rgb, channels="RGB")
+                    frame_with_gaze = draw_gaze_vector(frame_rgb)
+                    frame_placeholder.image(frame_with_gaze, channels="RGB")
 
-                    st.session_state.last_capture_time = current_time
+                    # 推論を実行
+                    try:
+                        screen_position = infer_gaze_position(
+                            image=frame_rgb,
+                            screen_size=screen_size,
+                            M=st.session_state.M,
+                        )
+                        if screen_position is not None:
+                            st.session_state.gaze_points.append(screen_position)
+                            status_placeholder.success(
+                                f"X = {screen_position[0]}, Y = {screen_position[1]}"
+                            )
+                    except Exception as e:
+                        print("No face detected: ", e)
+                        status_placeholder.error("顔をカメラに向けてください。")
 
-                # ストリームリットの更新待ち
-                time.sleep(0.1)
+                    if len(st.session_state.gaze_points) > 0:
+                        # Plotlyチャートにポイントを追加
+                        x_vals = [point[0] for point in st.session_state.gaze_points]
+                        y_vals = [point[1] for point in st.session_state.gaze_points]
 
-        # セッション終了時にカメラを解放（念のため）
-        def release_camera():
-            if st.session_state.cap is not None:
-                st.session_state.cap.release()
-                st.session_state.cap = None
+                        fig = go.Figure()
+                        fig.update_layout(
+                            xaxis=dict(
+                                range=[0, screen_size[0]], autorange=False, title="X"
+                            ),
+                            yaxis=dict(
+                                range=[0, screen_size[1]], autorange=False, title="Y"
+                            ),
+                            title="視線位置",
+                            width=1920 // 2,
+                            height=1080 // 2,
+                        )
+                        fig.add_trace(
+                            go.Scatter(
+                                x=x_vals,
+                                y=y_vals,
+                                mode="markers",
+                                marker=dict(color="red", size=5),
+                            )
+                        )
 
-        # Streamlitのセッション終了フックを使用
-        # 現在のStreamlitでは、セッション終了フックが提供されていないため、
-        # 代替としてキャッシュや他の方法を検討する必要があります。
-        # ここでは、停止ボタンでカメラを解放するようにしています。
+                        chart_placeholder.plotly_chart(fig, use_container_width=True)
 
+            cap.release()
+            cv2.destroyAllWindows()
