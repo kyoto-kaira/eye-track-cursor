@@ -8,7 +8,7 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windowsの人
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 2. cmakeを入れる（入っている人はこの手順は飛ばしてください）
@@ -22,6 +22,7 @@ brew install cmake
 # を参考にして入れる
 ```
 
+※インストールが終わったら、ターミナルを再起動してください
 
 2. リポジトリをクローンする
 
